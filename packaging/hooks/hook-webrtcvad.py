@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Local override for the bundled pyinstaller-hooks-contrib webrtcvad hook.
 
 On Windows we install ``webrtcvad-wheels`` rather than ``webrtcvad``, because

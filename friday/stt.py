@@ -25,7 +25,7 @@ class Transcriber:
         self.settings = settings
         self._model = None
 
-    def load(self) -> "Transcriber":
+    def load(self) -> Transcriber:
         try:
             from faster_whisper import WhisperModel
         except ImportError as exc:  # pragma: no cover - env dependent

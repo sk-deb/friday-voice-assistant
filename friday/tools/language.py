@@ -7,7 +7,7 @@ language for a whole session, or asking what is available.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from ..i18n import LanguageState, describe_languages
 

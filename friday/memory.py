@@ -60,9 +60,7 @@ class Memory:
         needle = needle.strip()
         if not needle:
             return 0
-        cur = self._db.execute(
-            "DELETE FROM facts WHERE fact LIKE ?", (f"%{needle}%",)
-        )
+        cur = self._db.execute("DELETE FROM facts WHERE fact LIKE ?", (f"%{needle}%",))
         self._db.commit()
         return cur.rowcount
 
@@ -97,7 +95,7 @@ class Memory:
     def close(self) -> None:
         self._db.close()
 
-    def __enter__(self) -> "Memory":
+    def __enter__(self) -> Memory:
         return self
 
     def __exit__(self, *_exc: object) -> None:
