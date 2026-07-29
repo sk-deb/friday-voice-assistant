@@ -37,14 +37,23 @@ Every setting is an environment variable, readable from a local `.env`. `friday/
 | `FRIDAY_PREROLL_MS` | `300` | Audio kept before speech is detected |
 | `FRIDAY_INPUT_DEVICE` | system default | Name or index; list with `python -c "import sounddevice; print(sounddevice.query_devices())"` |
 
+## Languages
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `FRIDAY_LANGUAGE` | `en` | Fallback language when detection is unsure |
+| `FRIDAY_LANGUAGES` | all eleven | Comma-separated codes she may switch into. Narrowing this to the languages you actually speak measurably improves detection |
+| `FRIDAY_AUTO_DETECT_LANGUAGE` | `true` | `false` pins `FRIDAY_LANGUAGE` and skips detection |
+
+Codes: `en ml hi ta es it fr de zh ko ja`. Details and per-language quality notes are in [LANGUAGES.md](LANGUAGES.md).
+
 ## Speech to text
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `FRIDAY_WHISPER_MODEL` | `base.en` | `tiny.en` is faster, `small.en` is more accurate |
+| `FRIDAY_WHISPER_MODEL` | chosen for you | `base.en` when only English is enabled, `small` when several are. `.en` models cannot transcribe other languages, so an `.en` override is widened automatically. `medium` is noticeably better for Malayalam, Tamil and Hindi |
 | `FRIDAY_WHISPER_DEVICE` | `cpu` | `cuda` with an NVIDIA GPU |
 | `FRIDAY_WHISPER_COMPUTE_TYPE` | `int8` | `float16` on GPU |
-| `FRIDAY_WHISPER_LANGUAGE` | `en` | Use a multilingual model for anything else |
 | `FRIDAY_WHISPER_BEAM_SIZE` | `1` | Greedy. Raise for accuracy at a latency cost |
 | `FRIDAY_WHISPER_VAD_FILTER` | `true` | Second-pass silence trimming |
 
@@ -57,6 +66,26 @@ Every setting is an environment variable, readable from a local `.env`. `friday/
 | `FRIDAY_PIPER_SAMPLE_RATE` | `22050` | Must match the voice card |
 | `FRIDAY_TTS_RATE` | `185` | pyttsx3 words per minute |
 | `FRIDAY_TTS_VOICE` | system default | pyttsx3 voice identifier |
+| `FRIDAY_VOICE_DIR` | `voices` | Folder searched for Piper voices |
+
+### Per-language voices
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `FRIDAY_PIPER_VOICE_<CODE>` | `FRIDAY_PIPER_VOICE_ES=voices/es_ES-davefx-medium.onnx` | Explicit Piper voice for one language |
+| `FRIDAY_TTS_VOICE_<CODE>` | `FRIDAY_TTS_VOICE_JA=...Haruka` | Explicit system voice for one language |
+
+Resolution order per language: the explicit override, then the voice suggested in the registry if its file exists in `FRIDAY_VOICE_DIR`, then an installed system voice matching the language, then the default voice with a note in the log. A missing voice never stops a reply.
+
+### Packaged Windows app
+
+The frozen launcher sets these before settings load, so they only matter if you want to override the installed layout.
+
+| Variable | Value it sets | Purpose |
+| --- | --- | --- |
+| `FRIDAY_DATA_DIR` | `%APPDATA%\Friday` | The install folder is read-only |
+| `FRIDAY_VOICE_DIR` | `voices` beside the exe | Bundled voices |
+| `HF_HOME` | `%APPDATA%\Friday\models` | Keeps downloaded speech models across reinstalls |
 
 ## Wake word
 
