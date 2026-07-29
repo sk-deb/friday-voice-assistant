@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 
 from . import __version__
 from .app import Friday
 from .config import load_settings
+from .i18n import LANGUAGES, resolve
 from .logging_setup import configure_logging
 
 log = logging.getLogger("friday.cli")
@@ -27,6 +29,17 @@ def build_parser() -> argparse.ArgumentParser:
         "text: typed input, no audio. Default: ptt",
     )
     parser.add_argument(
+        "--lang",
+        metavar="CODE",
+        help="Force a language for this run, e.g. ml, hi, ta, es, ja. "
+        "Without it, the language is detected from your speech.",
+    )
+    parser.add_argument(
+        "--languages",
+        action="store_true",
+        help="List the supported languages and exit.",
+    )
+    parser.add_argument(
         "--say",
         metavar="TEXT",
         help="Answer a single prompt and exit. Implies --mode text.",
@@ -40,6 +53,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.languages:
+        for language in LANGUAGES.values():
+            print(f"  {language.code}  {language.label}")
+        return 0
+
+    # --lang is just a friendlier way to set the environment variable, so the
+    # rest of the application keeps reading configuration from exactly one place.
+    if args.lang:
+        chosen = resolve(args.lang)
+        if chosen is None:
+            print(f"Unknown language: {args.lang}. Try --languages.")
+            return 2
+        os.environ["FRIDAY_LANGUAGE"] = chosen.code
+        os.environ["FRIDAY_AUTO_DETECT_LANGUAGE"] = "false"
+
     settings = load_settings()
     configure_logging(
         "DEBUG" if args.verbose else settings.log_level, settings.log_path

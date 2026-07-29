@@ -15,6 +15,7 @@ import time
 from .audio.ears import AudioUnavailableError, Ears
 from .audio.wake import WakeWordDetector
 from .config import Settings
+from .i18n import LanguageState
 from .llm import Brain
 from .memory import Memory
 from .stt import Transcriber
@@ -41,7 +42,10 @@ class Friday:
         self.settings = settings
         self.memory = Memory(settings.db_path)
         self.voice = Voice(build_speaker(settings.tts))
-        self.tools = build_toolset(settings, self.memory)
+        self.language = LanguageState(
+            settings.language.default_language, settings.language.languages
+        )
+        self.tools = build_toolset(settings, self.memory, self.language)
         self.brain = Brain(
             settings, tools=self.tools, memories=self.memory.as_prompt_block()
         )
@@ -51,6 +55,7 @@ class Friday:
     # ------------------------------------------------------------- lifecycle
     def start(self, audio: bool = True) -> "Friday":
         log.info("Tools loaded: %s", ", ".join(tool_names(self.tools)))
+        log.info("Languages: %s", self.settings.language.describe())
         self.brain.load()
         if audio:
             self.transcriber.load()
@@ -75,11 +80,12 @@ class Friday:
         if not text:
             return
         print(f"{self.settings.name.upper()}: {text}")
+        language = self.language.current
         if self.ears is not None:
             with self.ears.muted():
-                self.voice.say(text)
+                self.voice.say(text, language)
         else:
-            self.voice.say(text)
+            self.voice.say(text, language)
 
     def respond(self, text: str) -> str:
         """Run one brain turn, speaking each sentence as it arrives."""
@@ -88,8 +94,9 @@ class Friday:
             return ""
         if lowered in RESET_PHRASES:
             self.brain.reset()
-            self.say("Fresh start.")
-            return "Fresh start."
+            fresh = self.language.current.fresh_start
+            self.say(fresh)
+            return fresh
 
         self.memory.log_turn("owner", text)
         started = time.monotonic()
@@ -110,9 +117,18 @@ class Friday:
         audio = self.ears.record_utterance()
         if audio is None:
             return ""
-        text = self.transcriber.transcribe(audio)
+
+        text, detected = self.transcriber.transcribe_detect(audio)
+
+        # Follow the owner into whatever language they just used, so the reply
+        # is both generated and spoken in that language.
+        previous = self.language.current
+        current = self.language.observe(detected)
+        if current is not previous:
+            log.info("Language switched to %s", current.english_name)
+
         if text:
-            print(f"YOU: {text}")
+            print(f"YOU [{current.code}]: {text}")
         return text
 
     def voice_turn(self) -> str:
@@ -138,7 +154,7 @@ class Friday:
 
     def run_push_to_talk(self) -> None:
         """Press Enter, speak, stop speaking. Repeat."""
-        self.say(f"{self.settings.name} online.")
+        self.say(self.language.current.greeting.format(name=self.settings.name))
         while True:
             try:
                 input("\n[Enter to talk, Ctrl-C to quit] ")
@@ -157,14 +173,14 @@ class Friday:
             raise AudioUnavailableError("Friday was started without audio")
 
         detector = WakeWordDetector(self.settings.wake).load()
-        self.say(f"{self.settings.name} standing by.")
+        self.say(self.language.current.greeting.format(name=self.settings.name))
 
         try:
             for frame in self.ears.frames():
                 if not detector.feed(frame):
                     continue
                 if self.settings.wake.acknowledge:
-                    self.say("Yes?")
+                    self.say(self.language.current.acknowledge)
                 self.ears.drain()
                 self.voice_turn()
                 detector.reset()
