@@ -1,0 +1,10 @@
+-r requirements.txt
+
+# Lint and format
+ruff>=0.6.0
+
+# Type checking (optional, not enforced in CI)
+mypy>=1.11.0
+
+# The test suite itself uses only the standard library:
+#   python -m unittest discover -s tests -t .

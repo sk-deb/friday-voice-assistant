@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "friday-voice-assistant"
+version = "1.0.0"
+description = "A local-first voice assistant with a cloud brain: offline wake word, STT and TTS, Gemini for reasoning and tool use."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Srihari Kalesh" }]
+keywords = ["voice-assistant", "jarvis", "whisper", "wake-word", "gemini", "tts"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+  "google-genai>=1.0.0",
+  "faster-whisper>=1.0.3",
+  "sounddevice>=0.4.6",
+  "numpy>=1.24",
+  "openwakeword>=0.6.0",
+  "pyttsx3>=2.90",
+  "pyperclip>=1.8.2",
+  "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.6.0", "mypy>=1.11.0"]
+
+[project.scripts]
+friday = "friday.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["friday*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["B008", "SIM105"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
