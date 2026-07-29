@@ -1,0 +1,47 @@
+# Secrets - never commit these
+.env
+.env.*
+!.env.example
+*.key
+
+# FRIDAY runtime data
+.friday/
+*.sqlite3
+*.sqlite3-journal
+notes.md
+*.log
+
+# Model weights and voices
+voices/
+models/
+*.onnx
+*.onnx.json
+*.gguf
+*.bin
+*.pt
+
+# Audio scratch
+*.wav
+*.mp3
+*.raw
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

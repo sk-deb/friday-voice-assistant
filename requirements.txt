@@ -1,0 +1,27 @@
+# FRIDAY runtime dependencies.
+# Install order is deliberate: CTranslate2-based faster-whisper first, so it
+# resolves its own numpy pin before anything else touches it.
+
+# Language model
+google-genai>=1.0.0
+
+# Speech to text (local, CTranslate2)
+faster-whisper>=1.0.3
+
+# Audio capture and endpointing
+sounddevice>=0.4.6
+numpy>=1.24
+webrtcvad>=2.0.10 ; platform_system != "Windows"
+webrtcvad-wheels>=2.0.11 ; platform_system == "Windows"
+
+# Wake word (local, ONNX)
+openwakeword>=0.6.0
+
+# Text to speech fallback. Piper is optional: pip install piper-tts
+pyttsx3>=2.90
+
+# Tools
+pyperclip>=1.8.2
+
+# .env loading
+python-dotenv>=1.0.0
