@@ -10,6 +10,17 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .i18n import (
+    DEFAULT_LANGUAGE,
+    LANGUAGES,
+    Language,
+    describe_languages,
+    enabled_languages,
+    language_instruction,
+    multilingual_model,
+    resolve,
+)
+
 
 def _str(key: str, default: str) -> str:
     value = os.getenv(key)
@@ -79,6 +90,49 @@ class AudioSettings:
 
 
 @dataclass(frozen=True)
+class LanguageSettings:
+    """Which languages FRIDAY works in.
+
+    ``default`` is the fallback when detection is unsure. ``enabled`` is the set
+    she is allowed to switch into. Narrowing ``enabled`` to the languages you
+    actually speak measurably improves detection accuracy.
+    """
+
+    default: str = "en"
+    enabled: list[str] = field(default_factory=lambda: list(LANGUAGES))
+    auto_detect: bool = True
+
+    @property
+    def default_language(self) -> Language:
+        return resolve(self.default) or DEFAULT_LANGUAGE
+
+    @property
+    def languages(self) -> list[Language]:
+        """Enabled languages, with the default guaranteed to be present."""
+        found = enabled_languages(self.enabled)
+        fallback = self.default_language
+        if fallback not in found:
+            found.insert(0, fallback)
+        return found
+
+    @property
+    def multilingual(self) -> bool:
+        """True when anything other than English-only is in play."""
+        return len(self.languages) > 1 or self.default_language.code != "en"
+
+    def describe(self) -> str:
+        return describe_languages(self.languages)
+
+    @classmethod
+    def from_env(cls) -> "LanguageSettings":
+        return cls(
+            default=_str("FRIDAY_LANGUAGE", "en"),
+            enabled=_list("FRIDAY_LANGUAGES", list(LANGUAGES)),
+            auto_detect=_bool("FRIDAY_AUTO_DETECT_LANGUAGE", True),
+        )
+
+
+@dataclass(frozen=True)
 class SttSettings:
     """Local speech-to-text (faster-whisper / CTranslate2)."""
 
@@ -88,16 +142,28 @@ class SttSettings:
     language: str = "en"
     beam_size: int = 1
     vad_filter: bool = True
+    auto_detect: bool = False
 
     @classmethod
-    def from_env(cls) -> "SttSettings":
+    def from_env(cls, language: "LanguageSettings | None" = None) -> "SttSettings":
+        language = language or LanguageSettings()
+
+        # English-only models are both faster and better - but they cannot
+        # transcribe anything else, so multilingual setups need a bigger model.
+        # ``small`` is the smallest that handles Malayalam and Tamil usably.
+        fallback_model = "small" if language.multilingual else "base.en"
+        model = _str("FRIDAY_WHISPER_MODEL", fallback_model)
+        if language.multilingual:
+            model = multilingual_model(model)
+
         return cls(
-            model=_str("FRIDAY_WHISPER_MODEL", "base.en"),
+            model=model,
             device=_str("FRIDAY_WHISPER_DEVICE", "cpu"),
             compute_type=_str("FRIDAY_WHISPER_COMPUTE_TYPE", "int8"),
-            language=_str("FRIDAY_WHISPER_LANGUAGE", "en"),
+            language=_str("FRIDAY_WHISPER_LANGUAGE", language.default_language.code),
             beam_size=_int("FRIDAY_WHISPER_BEAM_SIZE", 1),
             vad_filter=_bool("FRIDAY_WHISPER_VAD_FILTER", True),
+            auto_detect=language.multilingual and language.auto_detect,
         )
 
 
@@ -133,15 +199,50 @@ class TtsSettings:
     piper_sample_rate: int = 22_050
     rate: int = 185
     voice: str | None = None
+    voice_dir: str = "voices"
+    piper_voices: dict[str, str] = field(default_factory=dict)
+    system_voices: dict[str, str] = field(default_factory=dict)
+
+    def piper_model_for(self, language: Language) -> str:
+        """Path to the Piper voice for a language, or the default voice.
+
+        Resolution order: an explicit ``FRIDAY_PIPER_VOICE_<CODE>`` override,
+        then the registry's suggested voice inside ``voice_dir``, then the
+        default model. Existence is checked by the speaker, not here.
+        """
+        override = self.piper_voices.get(language.code)
+        if override:
+            return override
+        if language.piper_voice:
+            return f"{self.voice_dir}/{language.piper_voice}.onnx"
+        return self.piper_model
+
+    def system_voice_for(self, language: Language) -> str | None:
+        """Explicit system-voice id for a language, when one was configured."""
+        return self.system_voices.get(language.code) or self.voice
 
     @classmethod
     def from_env(cls) -> "TtsSettings":
+        # Per-language overrides: FRIDAY_PIPER_VOICE_ML, FRIDAY_TTS_VOICE_JA, ...
+        piper_voices: dict[str, str] = {}
+        system_voices: dict[str, str] = {}
+        for code in LANGUAGES:
+            piper = os.getenv(f"FRIDAY_PIPER_VOICE_{code.upper()}")
+            if piper:
+                piper_voices[code] = piper
+            system = os.getenv(f"FRIDAY_TTS_VOICE_{code.upper()}")
+            if system:
+                system_voices[code] = system
+
         return cls(
             engine=_str("FRIDAY_TTS_ENGINE", "auto").lower(),
             piper_model=_str("FRIDAY_PIPER_MODEL", "voices/en_US-amy-medium.onnx"),
             piper_sample_rate=_int("FRIDAY_PIPER_SAMPLE_RATE", 22_050),
             rate=_int("FRIDAY_TTS_RATE", 185),
             voice=os.getenv("FRIDAY_TTS_VOICE") or None,
+            voice_dir=_str("FRIDAY_VOICE_DIR", "voices"),
+            piper_voices=piper_voices,
+            system_voices=system_voices,
         )
 
 
@@ -186,6 +287,7 @@ class Settings:
     data_dir: Path = Path.home() / ".friday"
     log_level: str = "INFO"
     allow_shell: bool = False
+    language: LanguageSettings = field(default_factory=LanguageSettings)
     audio: AudioSettings = field(default_factory=AudioSettings)
     stt: SttSettings = field(default_factory=SttSettings)
     llm: LlmSettings = field(default_factory=LlmSettings)
@@ -207,6 +309,9 @@ class Settings:
 
     def system_prompt(self, memories: str = "") -> str:
         prompt = self.persona.format(name=self.name, owner=self.owner)
+        prompt += language_instruction(
+            self.language.default_language, self.language.languages
+        )
         if memories:
             prompt += "\nThings you already know about the owner:\n" + memories
         return prompt
@@ -216,14 +321,16 @@ class Settings:
         data_dir = Path(
             _str("FRIDAY_DATA_DIR", str(Path.home() / ".friday"))
         ).expanduser()
+        language = LanguageSettings.from_env()
         return cls(
             name=_str("FRIDAY_NAME", "Friday"),
             owner=_str("FRIDAY_OWNER", "Srihari"),
             data_dir=data_dir,
             log_level=_str("FRIDAY_LOG_LEVEL", "INFO").upper(),
             allow_shell=_bool("FRIDAY_ALLOW_SHELL", False),
+            language=language,
             audio=AudioSettings.from_env(),
-            stt=SttSettings.from_env(),
+            stt=SttSettings.from_env(language),
             llm=LlmSettings.from_env(),
             tts=TtsSettings.from_env(),
             wake=WakeSettings.from_env(),

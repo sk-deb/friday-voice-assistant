@@ -75,6 +75,31 @@ def main() -> int:
         print(f"  [{OK}] data directory   {settings.data_dir}")
         print(f"  [{OK}] whisper model    {settings.stt.model} on {settings.stt.device}")
         print(f"  [{OK}] wake models      {', '.join(settings.wake.models)}")
+
+        detect = "auto-detect" if settings.stt.auto_detect else "fixed"
+        print(
+            f"  [{OK}] languages        "
+            f"{len(settings.language.languages)} enabled, {detect} "
+            f"(default {settings.language.default_language.english_name})"
+        )
+        # An .en model silently transcribes every language as garbled English,
+        # which looks like a bad microphone rather than a configuration error.
+        if settings.language.multilingual and settings.stt.model.endswith(".en"):
+            print(
+                f"  [{WARN}] whisper model    "
+                f"{settings.stt.model} cannot transcribe non-English speech"
+            )
+        voiceless = [
+            language.english_name
+            for language in settings.language.languages
+            if not language.piper_voice
+        ]
+        if voiceless:
+            print(
+                f"  [{WARN}] system voice     "
+                f"{', '.join(voiceless)} have no Piper voice "
+                "(see docs/LANGUAGES.md)"
+            )
         print(f"  [{OK}] shell tool       {'armed' if settings.allow_shell else 'disabled'}")
     except Exception as exc:
         failures += 1
