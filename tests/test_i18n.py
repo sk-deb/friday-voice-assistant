@@ -102,7 +102,9 @@ class LanguageSettingsTests(unittest.TestCase):
         self.assertIn("ta", [lang.code for lang in odd.languages])
 
     def test_unknown_names_are_ignored(self) -> None:
-        codes = [lang.code for lang in LanguageSettings(enabled=["en", "elvish"]).languages]
+        codes = [
+            lang.code for lang in LanguageSettings(enabled=["en", "elvish"]).languages
+        ]
         self.assertEqual(codes, ["en"])
 
     def test_env_overrides(self) -> None:

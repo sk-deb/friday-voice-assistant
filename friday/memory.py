@@ -27,6 +27,15 @@ CREATE TABLE IF NOT EXISTS turns (
 CREATE INDEX IF NOT EXISTS idx_turns_created_at ON turns (created_at);
 """
 
+# Kept as a triple-quoted constant: on one line the statement runs past 88
+# columns, and the formatter refuses to split string literals - so an implicit
+# concatenation here would flip-flop between ruff check and ruff format.
+_RECENT_TURNS_SQL = """
+SELECT role, text, created_at FROM turns
+ORDER BY created_at DESC
+LIMIT ?
+"""
+
 
 class Memory:
     """Tiny SQLite wrapper. Safe to share across threads."""
@@ -60,9 +69,7 @@ class Memory:
         needle = needle.strip()
         if not needle:
             return 0
-        cur = self._db.execute(
-            "DELETE FROM facts WHERE fact LIKE ?", (f"%{needle}%",)
-        )
+        cur = self._db.execute("DELETE FROM facts WHERE fact LIKE ?", (f"%{needle}%",))
         self._db.commit()
         return cur.rowcount
 
@@ -86,18 +93,14 @@ class Memory:
         self._db.commit()
 
     def recent_turns(self, limit: int = 20) -> list[dict[str, object]]:
-        rows = self._db.execute(
-            "SELECT role, text, created_at FROM turns "
-            "ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        rows = self._db.execute(_RECENT_TURNS_SQL, (limit,)).fetchall()
         return [dict(row) for row in reversed(rows)]
 
     # ---------------------------------------------------------------- misc
     def close(self) -> None:
         self._db.close()
 
-    def __enter__(self) -> "Memory":
+    def __enter__(self) -> Memory:
         return self
 
     def __exit__(self, *_exc: object) -> None:

@@ -28,7 +28,7 @@ class WakeWordDetector:
         self._np = None
         self._last_fired = 0.0
 
-    def load(self) -> "WakeWordDetector":
+    def load(self) -> WakeWordDetector:
         try:
             import numpy as np
             import openwakeword

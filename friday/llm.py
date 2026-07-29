@@ -9,7 +9,7 @@ any schema boilerplate.
 from __future__ import annotations
 
 import logging
-from typing import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 
 from .config import Settings
 
@@ -37,7 +37,7 @@ class Brain:
         self._chat = None
 
     # ------------------------------------------------------------- lifecycle
-    def load(self) -> "Brain":
+    def load(self) -> Brain:
         if not self.settings.llm.api_key:
             raise BrainUnavailableError(
                 "GEMINI_API_KEY is not set. Copy .env.example to .env and add "
@@ -58,9 +58,7 @@ class Brain:
             tools=self.tools or None,
             temperature=llm.temperature,
             max_output_tokens=llm.max_output_tokens,
-            thinking_config=types.ThinkingConfig(
-                thinking_budget=llm.thinking_budget
-            ),
+            thinking_config=types.ThinkingConfig(thinking_budget=llm.thinking_budget),
         )
         self._chat = self._client.chats.create(model=llm.model, config=self._config)
         log.info("Brain ready: %s with %d tools", llm.model, len(self.tools))

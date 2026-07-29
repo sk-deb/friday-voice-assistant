@@ -53,7 +53,7 @@ class Friday:
         self.ears: Ears | None = None
 
     # ------------------------------------------------------------- lifecycle
-    def start(self, audio: bool = True) -> "Friday":
+    def start(self, audio: bool = True) -> Friday:
         log.info("Tools loaded: %s", ", ".join(tool_names(self.tools)))
         log.info("Languages: %s", self.settings.language.describe())
         self.brain.load()
@@ -68,7 +68,7 @@ class Friday:
         self.voice.close()
         self.memory.close()
 
-    def __enter__(self) -> "Friday":
+    def __enter__(self) -> Friday:
         return self
 
     def __exit__(self, *_exc: object) -> None:

@@ -21,15 +21,19 @@ ROOT = Path(SPECPATH).parent
 # openWakeWord and faster-whisper ship .onnx / .tflite models and metadata
 # inside their packages. PyInstaller only bundles Python modules unless the
 # data files are collected explicitly, and missing them fails at runtime.
+# webrtcvad is a single extension module rather than a package, so it has no
+# data files to collect - asking for them only produced a warning.
 datas = []
-for package in ("openwakeword", "faster_whisper", "webrtcvad", "pyttsx3"):
+for package in ("openwakeword", "faster_whisper", "pyttsx3"):
     try:
         datas += collect_data_files(package)
     except Exception as exc:  # pragma: no cover - build time diagnostics
         print(f"[friday.spec] no data files collected for {package}: {exc}")
 
+# sounddevice itself is a plain module; the PortAudio DLL it needs lives in the
+# separate _sounddevice_data package, which is the one worth collecting.
 binaries = []
-for package in ("ctranslate2", "onnxruntime", "sounddevice", "_sounddevice_data"):
+for package in ("ctranslate2", "onnxruntime", "_sounddevice_data"):
     try:
         binaries += collect_dynamic_libs(package)
     except Exception as exc:  # pragma: no cover - build time diagnostics
@@ -123,7 +127,10 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    hookspath=[],
+    # Our own hooks win over PyInstaller's bundled ones. packaging/hooks holds
+    # a replacement for the contrib webrtcvad hook, which otherwise aborts the
+    # build when webrtcvad-wheels is installed instead of webrtcvad.
+    hookspath=[str(ROOT / "packaging" / "hooks")],
     hooksconfig={},
     runtime_hooks=[str(ROOT / "packaging" / "runtime_hook.py")],
     excludes=excludes,

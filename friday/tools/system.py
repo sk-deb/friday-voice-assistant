@@ -16,7 +16,7 @@ import platform
 import shutil
 import subprocess
 import webbrowser
-from typing import Callable
+from collections.abc import Callable
 
 from ..config import Settings
 

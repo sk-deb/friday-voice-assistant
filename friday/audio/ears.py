@@ -17,7 +17,7 @@ import collections
 import contextlib
 import logging
 import queue
-from typing import Iterator
+from collections.abc import Iterator
 
 from ..config import AudioSettings
 
@@ -40,7 +40,7 @@ class Ears:
         self._np = None
 
     # ------------------------------------------------------------- lifecycle
-    def start(self) -> "Ears":
+    def start(self) -> Ears:
         try:
             import numpy as np
             import sounddevice as sd
@@ -82,7 +82,7 @@ class Ears:
                 self._stream.close()
             self._stream = None
 
-    def __enter__(self) -> "Ears":
+    def __enter__(self) -> Ears:
         return self.start()
 
     def __exit__(self, *_exc: object) -> None:

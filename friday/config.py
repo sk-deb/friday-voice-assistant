@@ -76,7 +76,7 @@ class AudioSettings:
         return int(self.sample_rate * self.frame_ms / 1000)
 
     @classmethod
-    def from_env(cls) -> "AudioSettings":
+    def from_env(cls) -> AudioSettings:
         return cls(
             sample_rate=_int("FRIDAY_SAMPLE_RATE", 16_000),
             frame_ms=_int("FRIDAY_FRAME_MS", 30),
@@ -124,7 +124,7 @@ class LanguageSettings:
         return describe_languages(self.languages)
 
     @classmethod
-    def from_env(cls) -> "LanguageSettings":
+    def from_env(cls) -> LanguageSettings:
         return cls(
             default=_str("FRIDAY_LANGUAGE", "en"),
             enabled=_list("FRIDAY_LANGUAGES", list(LANGUAGES)),
@@ -145,7 +145,7 @@ class SttSettings:
     auto_detect: bool = False
 
     @classmethod
-    def from_env(cls, language: "LanguageSettings | None" = None) -> "SttSettings":
+    def from_env(cls, language: LanguageSettings | None = None) -> SttSettings:
         language = language or LanguageSettings()
 
         # English-only models are both faster and better - but they cannot
@@ -179,7 +179,7 @@ class LlmSettings:
     stream: bool = True
 
     @classmethod
-    def from_env(cls) -> "LlmSettings":
+    def from_env(cls) -> LlmSettings:
         return cls(
             api_key=_str("GEMINI_API_KEY", ""),
             model=_str("FRIDAY_MODEL", "gemini-2.5-flash"),
@@ -222,7 +222,7 @@ class TtsSettings:
         return self.system_voices.get(language.code) or self.voice
 
     @classmethod
-    def from_env(cls) -> "TtsSettings":
+    def from_env(cls) -> TtsSettings:
         # Per-language overrides: FRIDAY_PIPER_VOICE_ML, FRIDAY_TTS_VOICE_JA, ...
         piper_voices: dict[str, str] = {}
         system_voices: dict[str, str] = {}
@@ -256,7 +256,7 @@ class WakeSettings:
     acknowledge: bool = True
 
     @classmethod
-    def from_env(cls) -> "WakeSettings":
+    def from_env(cls) -> WakeSettings:
         return cls(
             models=_list("FRIDAY_WAKE_MODELS", ["hey_jarvis"]),
             threshold=_float("FRIDAY_WAKE_THRESHOLD", 0.5),
@@ -317,7 +317,7 @@ class Settings:
         return prompt
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         data_dir = Path(
             _str("FRIDAY_DATA_DIR", str(Path.home() / ".friday"))
         ).expanduser()

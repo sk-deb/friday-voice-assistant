@@ -16,8 +16,9 @@ import logging
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Protocol
+from typing import Protocol
 
 from .config import TtsSettings
 from .i18n import DEFAULT_LANGUAGE, Language
@@ -85,9 +86,7 @@ class Pyttsx3Speaker:
                         raw = raw.decode("utf-8", "ignore").strip("\x05\x00 ")
                     if raw:
                         langs.append(str(raw).lower())
-                catalogue.append(
-                    (voice.id, (voice.name or "").lower(), tuple(langs))
-                )
+                catalogue.append((voice.id, (voice.name or "").lower(), tuple(langs)))
         except Exception as exc:  # pragma: no cover - driver dependent
             log.debug("Could not enumerate system voices: %s", exc)
         return catalogue
@@ -202,11 +201,7 @@ def build_speaker(settings: TtsSettings) -> Speaker:
     if engine == "none":
         return NullSpeaker()
 
-    candidates: Iterable[str]
-    if engine == "auto":
-        candidates = ("piper", "pyttsx3")
-    else:
-        candidates = (engine,)
+    candidates: Iterable[str] = ("piper", "pyttsx3") if engine == "auto" else (engine,)
 
     for candidate in candidates:
         try:

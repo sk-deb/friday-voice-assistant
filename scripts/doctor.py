@@ -70,10 +70,12 @@ def main() -> int:
 
         settings = load_settings()
         key_state = "set" if settings.llm.api_key else "NOT SET"
-        print(f"  [{OK if settings.llm.api_key else MISSING}] GEMINI_API_KEY   {key_state}")
+        key_mark = OK if settings.llm.api_key else MISSING
+        print(f"  [{key_mark}] GEMINI_API_KEY   {key_state}")
         failures += 0 if settings.llm.api_key else 1
         print(f"  [{OK}] data directory   {settings.data_dir}")
-        print(f"  [{OK}] whisper model    {settings.stt.model} on {settings.stt.device}")
+        whisper = f"{settings.stt.model} on {settings.stt.device}"
+        print(f"  [{OK}] whisper model    {whisper}")
         print(f"  [{OK}] wake models      {', '.join(settings.wake.models)}")
 
         detect = "auto-detect" if settings.stt.auto_detect else "fixed"
@@ -100,7 +102,8 @@ def main() -> int:
                 f"{', '.join(voiceless)} have no Piper voice "
                 "(see docs/LANGUAGES.md)"
             )
-        print(f"  [{OK}] shell tool       {'armed' if settings.allow_shell else 'disabled'}")
+        shell = "armed" if settings.allow_shell else "disabled"
+        print(f"  [{OK}] shell tool       {shell}")
     except Exception as exc:
         failures += 1
         print(f"  [{MISSING}] settings failed to load: {exc}")
