@@ -7,6 +7,10 @@ name: Windows build
 #
 # This exists so an installer can be produced without owning a Windows build
 # machine: trigger the workflow, then download the result.
+#
+# Design rule learned the hard way: a green check must mean "the installer
+# exists". Every step that produces an artifact therefore verifies its own
+# output and fails loudly, and nothing that matters is behind a conditional.
 
 on:
   push:
@@ -50,9 +54,15 @@ jobs:
         run: pyinstaller packaging/friday.spec --noconfirm --clean
 
       - name: Verify the exe starts
+        shell: pwsh
         run: |
+          if (-not (Test-Path 'dist\Friday\friday.exe')) {
+            throw 'PyInstaller reported success but dist\Friday\friday.exe is missing.'
+          }
           .\dist\Friday\friday.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "friday.exe --version exited $LASTEXITCODE" }
           .\dist\Friday\friday.exe --languages
+          if ($LASTEXITCODE -ne 0) { throw "friday.exe --languages exited $LASTEXITCODE" }
 
       - name: Report build size
         shell: pwsh
@@ -62,28 +72,66 @@ jobs:
           Write-Host "dist/Friday is $mb MB"
           "Frozen app size: **$mb MB**" | Out-File $env:GITHUB_STEP_SUMMARY -Append
 
+      # Installing and compiling are unconditional. The previous version gated
+      # both on `inputs.make_installer`, which is empty for a tag push and can
+      # be skipped on a manual run - producing a green build with no installer
+      # in it and no error to explain why.
       - name: Install Inno Setup
-        if: >-
-          github.event_name == 'push' ||
-          inputs.make_installer
         run: choco install innosetup --no-progress -y
 
-      - name: Build installer
-        if: >-
-          github.event_name == 'push' ||
-          inputs.make_installer
-        run: >-
-          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
-          packaging\friday_installer.iss
+      - name: Build the installer
         shell: pwsh
+        run: |
+          # $env:ProgramFiles(x86) does NOT parse in PowerShell - the (x86) is
+          # read as literal text after $env:ProgramFiles. The braced form is
+          # required. Several candidates are probed because the Chocolatey
+          # package location has moved between runner images.
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:ChocolateyInstall\bin\ISCC.exe",
+            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          )
+          $iscc = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          if (-not $iscc) {
+            $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          }
+          if (-not $iscc) {
+            Write-Host 'Searched these locations:'
+            $candidates | ForEach-Object { Write-Host "  $_" }
+            throw 'ISCC.exe not found after installing Inno Setup.'
+          }
+          Write-Host "Using $iscc"
+          & $iscc packaging\friday_installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC exited $LASTEXITCODE" }
 
+      - name: Verify the installer exists
+        shell: pwsh
+        run: |
+          $setup = 'dist\installer\FridaySetup.exe'
+          if (-not (Test-Path $setup)) {
+            Write-Host 'Contents of dist:'
+            Get-ChildItem dist -Recurse -Depth 2 |
+              Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host "  $_" }
+            throw "ISCC succeeded but $setup is missing."
+          }
+          $mb = [math]::Round((Get-Item $setup).Length / 1MB, 1)
+          Write-Host "$setup is $mb MB"
+          "Installer: **FridaySetup.exe, $mb MB**" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+          "Download it from the **Artifacts** section at the bottom of this run." |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+      # No `if: hashFiles(...)` guard here. That guard silently skipped the
+      # upload when the installer was missing, which is precisely the case that
+      # should have turned the build red instead.
       - name: Upload the installer
-        if: hashFiles('dist/installer/FridaySetup.exe') != ''
         uses: actions/upload-artifact@v4
         with:
           name: FridaySetup
           path: dist/installer/FridaySetup.exe
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload the portable app
         uses: actions/upload-artifact@v4
@@ -91,6 +139,7 @@ jobs:
           name: Friday-portable
           path: dist/Friday
           if-no-files-found: error
+          retention-days: 30
 
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/v')
