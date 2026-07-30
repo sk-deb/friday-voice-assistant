@@ -1,6 +1,6 @@
 """Entry point for the packaged Windows build.
 
-Running from source and running from a frozen ``friday.exe`` differ in three
+Running from source and running from a frozen ``friday.exe`` differ in four
 ways, and this file is the only place that knows about them:
 
 1. **Where data lives.** From source, ``~/.friday`` is fine. Installed under
@@ -10,7 +10,10 @@ ways, and this file is the only place that knows about them:
    the data directory) is loaded before settings are read, so the owner can drop
    their Gemini key in without touching environment variables.
 3. **The window closing instantly.** A double-clicked exe that crashes vanishes
-   with the error. Here the window is held open so the message can be read.
+   with the error. Here the window is held open so the message can be read -
+   but only when someone is actually there to read it.
+4. **Questions that need no key.** ``--version``, ``--languages`` and ``--help``
+   answer from local data, so they must work before a key is configured.
 """
 
 from __future__ import annotations
@@ -18,6 +21,11 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+
+# Flags that only report local information. Gating these behind the API-key
+# check made the exe unable to answer "which version are you?", which is exactly
+# what a smoke test - and a confused owner - asks first.
+KEYLESS_FLAGS = frozenset({"--version", "-V", "--languages", "--help", "-h"})
 
 
 def _is_frozen() -> bool:
@@ -69,6 +77,32 @@ def _prepare_environment() -> Path:
     return data_dir
 
 
+def _wants_pause() -> bool:
+    """True only when a human is watching a window that is about to vanish.
+
+    A double-clicked exe needs the pause. A build runner, a piped invocation or
+    a redirected console has no stdin to read, and calling ``input()`` there
+    raises ``EOFError`` - turning a clean exit code into a crash.
+    """
+    if not _is_frozen():
+        return False
+    if os.getenv("FRIDAY_NO_PAUSE") or os.getenv("CI"):
+        return False
+    try:
+        return bool(sys.stdin and sys.stdin.isatty())
+    except Exception:  # pragma: no cover - detached stdin
+        return False
+
+
+def _pause() -> None:
+    if not _wants_pause():
+        return
+    try:
+        input("Press Enter to close... ")
+    except (EOFError, KeyboardInterrupt):  # pragma: no cover - no console
+        pass
+
+
 def _missing_key_notice(data_dir: Path) -> None:
     print("=" * 68)
     print(" FRIDAY needs a Gemini API key before she can think.")
@@ -84,25 +118,34 @@ def _missing_key_notice(data_dir: Path) -> None:
     print()
 
 
-def main() -> int:
+def _needs_key(argv: list[str]) -> bool:
+    """False when every argument is an informational flag."""
+    return not any(arg in KEYLESS_FLAGS for arg in argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
     data_dir = _prepare_environment()
 
-    if not os.getenv("GEMINI_API_KEY"):
+    if _needs_key(argv) and not os.getenv("GEMINI_API_KEY"):
         _missing_key_notice(data_dir)
-        if _is_frozen():
-            input("Press Enter to close... ")
+        _pause()
         return 2
 
     from friday.__main__ import main as friday_main
 
     try:
         return friday_main()
+    except SystemExit as exc:  # argparse exits this way for --version/--help
+        return int(exc.code or 0)
+    except KeyboardInterrupt:
+        print()
+        return 130
     except Exception as exc:  # pragma: no cover - top level safety net
         print()
         print(f"FRIDAY stopped with an error: {exc}")
         print(f"Full details were written to {data_dir / 'friday.log'}")
-        if _is_frozen():
-            input("Press Enter to close... ")
+        _pause()
         return 1
 
 
